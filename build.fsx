@@ -2,23 +2,27 @@
 #r @"packages/FAKE/tools/FakeLib.dll"
 open Fake.FscHelper
 open Fake
-//let buildDir = "./bin/"
 
-// Target "Clean" (fun _ -> 
-//     CleanDir buildDir
-// )
+let buildDir = "./bin/"
+
+Target "Clean" (fun _ -> 
+    CleanDir buildDir
+)
 // Default target
-Target "Default" (fun _ ->
+Target "Intro" (fun _ ->
     trace "Beginning compilation"
 )
 
-Target "Fsray.exe" (fun _ ->
+Target "Compile" (fun _ ->
     ["Program.fs"] 
-    |> FscHelper.Compile [FscParam.Target TargetType.Exe]
+    |> FscHelper.Compile [FscParam.Out "./bin/Fsray.exe"; FscParam.Target TargetType.Exe]
 )
 
 //Dependencies
 
+"Clean"
+    ==> "Intro"
+    ==> "Compile"
 
 // start build
-RunTargetOrDefault "Fsray.exe"
+RunTargetOrDefault "Compile"
