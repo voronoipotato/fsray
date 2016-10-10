@@ -154,7 +154,6 @@ type Metal<'T>(hitable:IHitable) =
 
 
 let rand = System.Random()
-let __ = ()
 let toStr (x) = x.ToString()
 
 //**************************
