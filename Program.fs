@@ -35,7 +35,30 @@ module DTypes =
         static member (/) (v1: V3, v2: V3) = {x=(v1.x / v2.x);
                                             y=(v1.y / v2.y); 
                                             z=(v1.z / v2.z)}
-        override v.ToString() = sprintf "%f %f %f" v.x v.y v.z //v.x.ToString() + " " + v.y.ToString() + " " + v.z.ToString()
+        override v.ToString() = sprintf "%f %f %f" v.x v.y v.z
+
+        type Color =
+            {r:float; g:float; b:float}
+            
+            static member fmap2 (f: float -> float -> float) (c, k) = 
+                {r=f c.r k; g = f c.g k; b = f c.b k}
+
+            static member fmap2r (f: float -> float -> float) (c, k) = 
+                {r=f k c.r; g = f k c.g ; b = f k c.b}
+            static member fmap (f: float -> float) c1 = 
+                {r=f c1.r; g = f c1.g; b = f c1.b}
+            static member fmapC2 (f: float -> float -> float) (c1, c2) = 
+                {r=f c1.r c2.r; g = f c1.g c2.g; b = f c1.b c2.b}
+
+            static member (*) (c, k) = Color.fmap2 (*) (c, k)
+            static member (*) (k, c) =  c*k
+            static member (*) (c1, c2) = Color.fmapC2 (*) (c1,c2)
+            static member (/) (c, k) = Color.fmap2 (/) (c, k)
+            static member (/) (k, c) = Color.fmap2r (/) (c, k)
+            static member (+) (c1, c2) = Color.fmapC2 (+) (c1,c2)
+            override this.ToString() = 
+                if (this.r > 1.0 || this.g > 1.0 || this.b > 1.0) then failwith "Colors can't be more than 100%"
+                int(this.r* 255.99).ToString() + " " + int(this.g*255.99).ToString() + " " + int(this.b*255.99).ToString()
                                         
 module V3 =
     let squaredLength v = v.x * v.x + v.y * v.y + v.z * v.z
@@ -49,77 +72,65 @@ module V3 =
     let create a b c = {x=a; y=b; z=c}
     let origin = {x=0.;y=0.;z=0.}
 
-type Color(r: float, g:float, b:float) =
-    member this.r = r
-    member this.g = g
-    member this.b = b
-    static member (*) (c: Color, k) = Color(c.r*k, c.g*k, c.b*k)
-    static member (*) (k, c: Color) = Color(k*c.r, k*c.g, k*c.b)
-    static member (*) (c1: Color, c2: Color) = Color(c1.r * c2.r, c1.g * c2.g , c1.b * c2.b)
-    static member (/) (c: Color, k) = Color(c.r/k, c.g/k, c.b/k) 
-    static member (/) (k, c: Color) = Color(k/c.r, k/c.g, k/c.b)   
-    static member (+) (c1: Color, c2: Color) = Color(c1.r + c2.r, c1.g + c2.g , c1.b + c2.b)
-    static member mono (k:float) = Color(k,k,k)
-    static member white = Color.mono(1.0)
-    static member black = Color.mono(0.)
-    static member Sqrt (c: Color) = Color(sqrt(c.r),sqrt(c.g),sqrt(c.b))
-    override this.ToString() = 
-        if (this.r > 1.0 || this.g > 1.0 || this.b > 1.0) then failwith "Colors can't be more than 100%"
-        int(this.r* 255.99).ToString() + " " + int(this.g*255.99).ToString() + " " + int(this.b*255.99).ToString()
+module Color = 
+    let mono k = {r=k;g=k;b=k}
+    let white = mono(1.0)
+    let black = mono(0.)
 
-type HitRecord(h: bool, shotDistance: float, point: V3, normal: V3) =
-    member this.h = h
-    member this.shotDistance = shotDistance
-    member this.point = point
-    member this.normal = normal
 
-type Ray(a: V3, b:V3) = 
-   member this.a = a
-   member this.b = b
-   member this.origin = this.a
-   member this.direction = this.b
-   member this.point_at(t:float) = this.a + t*this.b
+type HitRecord = {wasHit: bool; shotDistance: float; point: V3; normal: V3}
+
+type Ray= 
+    {origin:V3; direction:V3}
+    member this.point_at(t:float) = this.origin + t*this.direction
 
 type IHitable = abstract member hit: Ray -> float -> float -> HitRecord
 
-type Sphere(center:V3,r:float) =
-    member this.r = r
-    member this.center = center
+type Sphere =
+    {center:V3; r:float}
     interface IHitable with
         member this.hit ray tmin tmax= 
+            let rdir = ray.direction
             let oc = ray.origin - this.center
-            let a = V3.dot(ray.direction, ray.direction)
-            let b = V3.dot(oc, ray.direction)
+            let a = V3.dot(rdir, rdir)
+            let b = V3.dot(oc, rdir)
             let c = V3.dot(oc,oc) - this.r*this.r
             let descriminant = b*b - a*c
             if descriminant > 0.0 then
-                let temp = (-b - sqrt(b*b-a*c))/a
-                let tempb = (-b + sqrt(b*b-a*c))/a
+                let temp = (-b - sqrt(descriminant))/a
+                let tempb = (-b + sqrt(descriminant))/a
                 if (tmax > temp && temp > tmin )then 
-                    HitRecord(true,temp,ray.point_at(temp),ray.point_at(temp) - this.center / this.r)
+                    {
+                    wasHit=true;
+                    shotDistance=temp;
+                    point=ray.point_at(temp);
+                    normal=ray.point_at(temp) - this.center / this.r
+                    }
                 else if (tmax > tempb && tempb > tmin) then
-                    HitRecord(true,temp,ray.point_at(tempb),ray.point_at(tempb) - this.center / this.r)
+                    {
+                    wasHit=true;
+                    shotDistance=temp;
+                    point=ray.point_at(tempb);
+                    normal=ray.point_at(tempb) - this.center / this.r
+                    }
                 else 
-                    HitRecord(false,0.0,V3.origin,V3.origin)
+                    {wasHit=false;shotDistance=0.0;point=V3.origin;normal=V3.origin}
             else
-                HitRecord(false,0.0,V3.origin,V3.origin)
+                {wasHit=false;shotDistance=0.0;point=V3.origin;normal=V3.origin}
 
 
-type Triangle(v0:V3,v1:V3,v2:V3) = 
-    member this.v0 = v0
-    member this.v1 = v1
-    member this.v2 = v2
-    member this.e0 = v1 - v0
-    member this.e1 = v2 - v1  
-    member this.e2 = v0 - v2
+type Triangle = 
+    {v0:V3;v1:V3;v2:V3}
+    member this.e0 = this.v1 - this.v0
+    member this.e1 = this.v2 - this.v1  
+    member this.e2 = this.v0 - this.v2
     member this.normal = V3.cross(this.e0, -this.e2)
     member this.planeHit (ray :Ray) = 
-        let D = V3.dot(this.normal, v0)
+        let D = V3.dot(this.normal, this.v0)
         let t = (V3.dot(this.normal, ray.origin) + D) / V3.dot(this.normal, ray.direction)
         ray.origin + t * ray.direction
     interface IHitable with
         member this.hit ray tmin tmax = 
-
             let P = this.planeHit(ray)
             let dist = V3.dot(P,P) |> sqrt
             let paralell = false
@@ -132,25 +143,9 @@ type Triangle(v0:V3,v1:V3,v2:V3) =
                 V3.dot(this.normal, V3.cross(this.e1,c1)) > 0.0 &&
                 V3.dot(this.normal, V3.cross(this.e2,c2)) > 0.0 
             if inside() then
-                HitRecord(true,dist,P,this.normal)
+                {wasHit=true;shotDistance=dist;point=P;normal=this.normal}
             else
-                HitRecord(false,0.0,V3.origin,this.normal)
-
-
-type IBounce<'T> = 
-    abstract member bounce: HitRecord -> Color
-    //abstract member bind:  IHitable -> 'T
-
-type Metal<'T>(hitable:IHitable) = 
-    member this.hitable = hitable
-    member this.Return() = this.hitable
-    interface IBounce<Metal<'T>>  with 
-        member this.bounce(result:HitRecord) = Color.black
-        //member this.bind(f) = Metal(this.hitable |> f)
-
-  //  member this.thing = 
-  //  interface IHitable with
-  //      member this.hit (ray :Ray) (tmin :float) (tmax :float) = HitRecord(false,0.0,Vec3(0.0,0.0,0.0),Vec3(0.0,0.0,0.0))
+                {wasHit=false;shotDistance=0.0;point=V3.origin;normal=this.normal}
 
 
 let rand = System.Random()
@@ -164,9 +159,9 @@ let Width = 800
 [<Literal>]
 let Height = 400
 [<Literal>]
-let MaxBounce = 3
+let MaxBounce = 7
 [<Literal>]
-let Antialias = 1
+let Antialias = 4
 
 let LowerLeftCorner = V3.create -4. -2. -2.
 let Horizontal = V3.create 8. 0. 0.
@@ -181,19 +176,19 @@ let main argv =
     let tv1 = V3.create 0.0 3.0 -1.0
     let tv2 = V3.create 2.0 0.0 0.0
     let tv3 = V3.create -1.0 0.0 -1.0 
-    let tri1 = Triangle(tv1, tv2,tv3)
-    let s1 = Sphere({V3.origin with z = -1.} , 0.5)
-    let s2 = Sphere({V3.origin with y=(-100.5); z = (-1.)} , 100.)
-    let s3 = Sphere({V3.origin with x=1.; z = (-1.)} , 0.5)
+    let tri1 = {v0=tv1; v1=tv2; v2=tv3}
+    let s1 = {center={V3.origin with z = -1.}; r= 0.5}
+    let s2 = {center={V3.origin with y=(-100.5); z = (-1.)}; r=100.}
+    let s3 = {center={V3.origin with x=1.; z = (-1.)}; r=0.5} 
 
-    let hitables =
-        [Metal(s1) ]
-        |> List.append([Metal(s2)])
-        |> List.append([Metal(s3)])
-        //|> List.append([Metal(Sphere(Vec3(-1.0,0.0,-1.0),0.5))])
-        |> List.append([Metal(tri1)])
+    let hitables :IHitable list = [
+                    s1 
+                    s2 
+                    s3
+                    tri1
+                   ]
  
-    let sb = new System.Text.StringBuilder()
+    let sb = System.Text.StringBuilder()
     let outN l = sb.Append( l + "\n") |> ignore
 
     let header = 
@@ -210,30 +205,30 @@ let main argv =
         | :? V3 as p when V3.dot(p,p) < 1.0 -> p
         | _ -> randomInUnitSphere q
 
-    let sky (r:Ray) = 
+    let skybox (c1:Color) (c2:Color) (r :Ray) = 
         let unitDirection = r.direction |> V3.unit
         let t = 0.5 * (unitDirection.y + 1.0)
-        (1.0-t)*Color.white + t*Color(0.5, 0.7, 1.0)
+        c1*(1.0-t)+ c2*t
 
-    let sunset (r:Ray) = 
-        let unitDirection = r.direction |> V3.unit
-        let t = 0.5 * (unitDirection.y + 1.0)
-        (1.0-t)*Color(0.7,0.2,0.2) + t*Color(0.5, 0.7, 1.0)
+    let sky = skybox Color.white {r=0.5;g=0.7;b=1.0}
+
+    let sunset = skybox {r=0.7;g=0.2;b=0.2} {r=0.5;g=0.7;b=1.0}
+
 
     let rec fireRay (r:Ray) n :Color = 
         let results = 
             match n with
             | n when n < MaxBounce -> 
-                hitables |> List.map(fun s -> (s , s.hitable.hit r Tmin Tmax) ) 
-                |> List.filter(fun s -> snd(s).h ) 
-                |> List.sortBy(fun s -> snd(s).shotDistance)
+                hitables |> List.map(fun s -> (s, s.hit  r Tmin Tmax) ) 
+                |> List.filter(fun (_,(s:HitRecord)) -> s.wasHit ) 
+                |> List.sortBy(fun (_,(s:HitRecord)) -> s.shotDistance)
             | _ -> []
 
         match results with
         | head :: _ -> 
             let result = snd head
             let target = result.point + result.normal + randomInUnitSphere ()
-            let r2 = Ray(result.point, target - result.point)
+            let r2 = {origin = result.point; direction= target - result.point}
             0.65 * fireRay r2 (n+1) 
         | _ -> sky r
 
@@ -245,10 +240,10 @@ let main argv =
         let c = [1..Antialias] |> List.fold(fun acc _ -> 
             let u = (float(i) + rand.NextDouble()) / float(Width) //these variables have to be initialized here because they need to be generated each time
             let v = (float(j) + rand.NextDouble()) / float(Height)
-            let r = Ray(V3.origin, LowerLeftCorner + u*Horizontal + v*Vertical)
+            let r = {origin=V3.origin; direction=LowerLeftCorner + u*Horizontal + v*Vertical}
             //let p = r.point_at(2.0)
             fireRay r 0 + acc) Color.black
-        c/float(Antialias) |> Color.Sqrt //average the sum of the passes
+        c/float(Antialias) |> Color.fmap sqrt //average the sum of the passes
     
     header //adds the file header for PPM files
     
@@ -260,10 +255,5 @@ let main argv =
         )))
     )
         
-    System.IO.File.WriteAllText("testing.ppm", sb.ToString())//sprintf @"C:\Users\%s\Desktop\testing.ppm" UserName, sb.ToString())
-    //stopWatch.Stop()
-    //let p = new System.Diagnostics.Process();
-    //p.StartInfo.FileName <- @"C:\Program Files (x86)\IrfanView\i_view32.exe"
-    //p.StartInfo.Arguments <- sprintf @"C:\Users\%s\Desktop\testing.ppm" UserName
-    //p.Start() |> ignore
+    System.IO.File.WriteAllText("testing.ppm", sb.ToString())
     0 // return an integer exit code
