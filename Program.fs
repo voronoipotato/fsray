@@ -18,21 +18,21 @@ module DTypes =
         static member (*) (v1, v2) = V3.FMapV2 (*) (v1,v2)
         static member (/) (v1, v2) = V3.FMapV2 (/) (v1,v2)
         override v.ToString() = sprintf "%f %f %f" v.x v.y v.z
-        type Color =
-            {r:float; g:float; b:float}
-            static member FMap2 (f: float -> float -> float) (c, k) = {r=f c.r k; g = f c.g k; b = f c.b k}
-            static member FMap2r (f: float -> float -> float) (c, k) = {r=f k c.r; g = f k c.g ; b = f k c.b}
-            static member FMap (f: float -> float) c1 = {r=f c1.r; g = f c1.g; b = f c1.b}
-            static member FMapC2 (f: float -> float -> float) (c1, c2) = {r=f c1.r c2.r; g = f c1.g c2.g; b = f c1.b c2.b}
-            static member (*) (c, k) = Color.FMap2 (*) (c, k)
-            static member (*) (k, c) =  c*k
-            static member (*) (c1, c2) = Color.FMapC2 (*) (c1,c2)
-            static member (/) (c, k) = Color.FMap2 (/) (c, k)
-            static member (/) (k, c) = Color.FMap2r (/) (c, k)
-            static member (+) (c1, c2) = Color.FMapC2 (+) (c1,c2)
-            override this.ToString() = 
-                if (this.r > 1.0 || this.g > 1.0 || this.b > 1.0) then failwith "Colors can't be more than 100%"
-                int(this.r* 255.99).ToString() + " " + int(this.g*255.99).ToString() + " " + int(this.b*255.99).ToString()
+    type Color =
+        {r:float; g:float; b:float}
+        static member FMap2 (f: float -> float -> float) (c, k) = {r=f c.r k; g = f c.g k; b = f c.b k}
+        static member FMap2r (f: float -> float -> float) (c, k) = {r=f k c.r; g = f k c.g ; b = f k c.b}
+        static member FMap (f: float -> float) c1 = {r=f c1.r; g = f c1.g; b = f c1.b}
+        static member FMapC2 (f: float -> float -> float) (c1, c2) = {r=f c1.r c2.r; g = f c1.g c2.g; b = f c1.b c2.b}
+        static member (*) (c, k) = Color.FMap2 (*) (c, k)
+        static member (*) (k, c) =  c*k
+        static member (*) (c1, c2) = Color.FMapC2 (*) (c1,c2)
+        static member (/) (c, k) = Color.FMap2 (/) (c, k)
+        static member (/) (k, c) = Color.FMap2r (/) (c, k)
+        static member (+) (c1, c2) = Color.FMapC2 (+) (c1,c2)
+        override this.ToString() = 
+            if (this.r > 1.0 || this.g > 1.0 || this.b > 1.0) then failwith "Colors can't be more than 100%"
+            int(this.r* 255.99).ToString() + " " + int(this.g*255.99).ToString() + " " + int(this.b*255.99).ToString()
 module V3 =
     let squaredLength v = v.x * v.x + v.y * v.y + v.z * v.z
     let length v =  squaredLength v |> sqrt
