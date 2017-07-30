@@ -84,39 +84,36 @@ type Ray=
     {origin:V3; direction:V3}
     member this.point_at(t:float) = this.origin + t*this.direction
 
-type IHitable = abstract member hit: Ray -> float -> float -> HitRecord
-
 type Sphere =
     {center:V3; r:float}
-    interface IHitable with
-        member this.hit ray tmin tmax= 
-            let rdir = ray.direction
-            let oc = ray.origin - this.center
-            let a = V3.dot(rdir, rdir)
-            let b = V3.dot(oc, rdir)
-            let c = V3.dot(oc,oc) - this.r*this.r
-            let descriminant = b*b - a*c
-            if descriminant > 0.0 then
-                let temp = (-b - sqrt(descriminant))/a
-                let tempb = (-b + sqrt(descriminant))/a
-                if (tmax > temp && temp > tmin )then 
-                    {
-                    wasHit=true;
-                    shotDistance=temp;
-                    point=ray.point_at(temp);
-                    normal=ray.point_at(temp) - this.center / this.r
-                    }
-                else if (tmax > tempb && tempb > tmin) then
-                    {
-                    wasHit=true;
-                    shotDistance=temp;
-                    point=ray.point_at(tempb);
-                    normal=ray.point_at(tempb) - this.center / this.r
-                    }
-                else 
-                    {wasHit=false;shotDistance=0.0;point=V3.origin;normal=V3.origin}
-            else
+    static member hit s ray tmin tmax= 
+        let rdir = ray.direction
+        let oc = ray.origin - s.center
+        let a = V3.dot(rdir, rdir)
+        let b = V3.dot(oc, rdir)
+        let c = V3.dot(oc,oc) - s.r*s.r
+        let descriminant = b*b - a*c
+        if descriminant > 0.0 then
+            let temp = (-b - sqrt(descriminant))/a
+            let tempb = (-b + sqrt(descriminant))/a
+            if (tmax > temp && temp > tmin )then 
+                {
+                wasHit=true;
+                shotDistance=temp;
+                point=ray.point_at(temp);
+                normal=ray.point_at(temp) - s.center / s.r
+                }
+            else if (tmax > tempb && tempb > tmin) then
+                {
+                wasHit=true;
+                shotDistance=temp;
+                point=ray.point_at(tempb);
+                normal=ray.point_at(tempb) - s.center / s.r
+                }
+            else 
                 {wasHit=false;shotDistance=0.0;point=V3.origin;normal=V3.origin}
+        else
+            {wasHit=false;shotDistance=0.0;point=V3.origin;normal=V3.origin}
 
 
 type Triangle = 
@@ -125,29 +122,30 @@ type Triangle =
     member this.e1 = this.v2 - this.v1  
     member this.e2 = this.v0 - this.v2
     member this.normal = V3.cross(this.e0, -this.e2)
-    member this.planeHit (ray :Ray) = 
-        let D = V3.dot(this.normal, this.v0)
-        let t = (V3.dot(this.normal, ray.origin) + D) / V3.dot(this.normal, ray.direction)
-        ray.origin + t * ray.direction
-    interface IHitable with
-        member this.hit ray tmin tmax = 
-            let P = this.planeHit(ray)
-            let dist = V3.dot(P,P) |> sqrt
-            let paralell = false
-            let behind = false
-            let inside _ = 
-                let c0 = P - this.v0
-                let c1 = P - this.v1
-                let c2 = P - this.v2
-                V3.dot(this.normal, V3.cross(this.e0,c0)) > 0.0 &&
-                V3.dot(this.normal, V3.cross(this.e1,c1)) > 0.0 &&
-                V3.dot(this.normal, V3.cross(this.e2,c2)) > 0.0 
-            if inside() then
-                {wasHit=true;shotDistance=dist;point=P;normal=this.normal}
-            else
-                {wasHit=false;shotDistance=0.0;point=V3.origin;normal=this.normal}
+   
+    static member hit t ray tmin tmax = 
+        let planeHit (t: Triangle) (ray :Ray) = 
+            let D = V3.dot(t.normal, t.v0)
+            let t = (V3.dot(t.normal, ray.origin) + D) / V3.dot(t.normal, ray.direction)
+            ray.origin + t * ray.direction
 
+        let P = planeHit t ray
+        let dist = V3.dot(P,P) |> sqrt
+        let paralell = false
+        let behind = false
+        let inside _ = 
+            let c0 = P - t.v0
+            let c1 = P - t.v1
+            let c2 = P - t.v2
+            V3.dot(t.normal, V3.cross(t.e0,c0)) > 0.0 &&
+            V3.dot(t.normal, V3.cross(t.e1,c1)) > 0.0 &&
+            V3.dot(t.normal, V3.cross(t.e2,c2)) > 0.0 
+        if inside() then
+            {wasHit=true;shotDistance=dist;point=P;normal=t.normal}
+        else
+            {wasHit=false;shotDistance=0.0;point=V3.origin;normal=t.normal}
 
+type Hitable = Triangle of Triangle | Sphere of Sphere
 let rand = System.Random()
 let toStr (x) = x.ToString()
 
@@ -176,17 +174,22 @@ let main argv =
     let tv1 = V3.create 0.0 3.0 -1.0
     let tv2 = V3.create 2.0 0.0 0.0
     let tv3 = V3.create -1.0 0.0 -1.0 
-    let tri1 = {v0=tv1; v1=tv2; v2=tv3}
-    let s1 = {center={V3.origin with z = -1.}; r= 0.5}
-    let s2 = {center={V3.origin with y=(-100.5); z = (-1.)}; r=100.}
-    let s3 = {center={V3.origin with x=1.; z = (-1.)}; r=0.5} 
+    let tri1 = Triangle {v0=tv1; v1=tv2; v2=tv3}
+    let s1 = Sphere {center={V3.origin with z = -1.}; r= 0.5}
+    let s2 = Sphere {center={V3.origin with y=(-100.5); z = (-1.)}; r=100.}
+    let s3 = Sphere {center={V3.origin with x=1.; z = (-1.)}; r=0.5}
 
-    let hitables :IHitable list = [
+    let hit h  = 
+        match h with
+        | Sphere s -> Sphere.hit s 
+        | Triangle t-> Triangle.hit t
+
+    let hitables = [
+                    tri1
                     s1 
                     s2 
                     s3
-                    tri1
-                   ]
+    ] 
  
     let sb = System.Text.StringBuilder()
     let outN l = sb.Append( l + "\n") |> ignore
@@ -219,7 +222,7 @@ let main argv =
         let results = 
             match n with
             | n when n < MaxBounce -> 
-                hitables |> List.map(fun s -> (s, s.hit  r Tmin Tmax) ) 
+                hitables |> List.map(fun s -> (s, hit s r Tmin Tmax) ) 
                 |> List.filter(fun (_,(s:HitRecord)) -> s.wasHit ) 
                 |> List.sortBy(fun (_,(s:HitRecord)) -> s.shotDistance)
             | _ -> []
@@ -241,7 +244,6 @@ let main argv =
             let u = (float(i) + rand.NextDouble()) / float(Width) //these variables have to be initialized here because they need to be generated each time
             let v = (float(j) + rand.NextDouble()) / float(Height)
             let r = {origin=V3.origin; direction=LowerLeftCorner + u*Horizontal + v*Vertical}
-            //let p = r.point_at(2.0)
             fireRay r 0 + acc) Color.black
         c/float(Antialias) |> Color.fmap sqrt //average the sum of the passes
     
