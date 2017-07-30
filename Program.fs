@@ -33,13 +33,23 @@ module DTypes =
         override this.ToString() = 
             if (this.r > 1.0 || this.g > 1.0 || this.b > 1.0) then failwith "Colors can't be more than 100%"
             int(this.r* 255.99).ToString() + " " + int(this.g*255.99).ToString() + " " + int(this.b*255.99).ToString()
+    type HitRecord = {wasHit: bool; shotDistance: float; point: V3; normal: V3}
+    type Ray= 
+        {origin:V3; direction:V3}
+        member this.PointAt(t:float) = this.origin + t*this.direction
+    type Sphere = {center:V3; r:float}
+
+    type Triangle = 
+        {v0:V3;v1:V3;v2:V3}
+        member this.e0 = this.v1 - this.v0
+        member this.e1 = this.v2 - this.v1  
+        member this.e2 = this.v0 - this.v2
+
 module V3 =
     let squaredLength v = v.x * v.x + v.y * v.y + v.z * v.z
     let length v =  squaredLength v |> sqrt
     let dot (v1: V3, v2: V3) = v1.x * v2.x + v1.y * v2.y + v1.z * v2.z
-    let cross(v1: V3, v2: V3) = {x=(v1.y * v2.z - v1.z * v2.y);
-                                        y= -(v1.x*v2.z - v1.z * v2.x);
-                                        z=(v1.x*v2.y - v1.y * v2.x)}
+    let cross(v1: V3, v2: V3) = {x=(v1.y * v2.z - v1.z * v2.y); y= -(v1.x*v2.z - v1.z * v2.x); z=(v1.x*v2.y - v1.y * v2.x)}
     let reflect(v1: V3, v2: V3) = v1 - 2.0 * dot(v1,v2)*v2
     let unit(v:V3) =  v/ length v
     let create a b c = {x=a; y=b; z=c}
@@ -48,13 +58,8 @@ module Color =
     let mono k = {r=k;g=k;b=k}
     let white = mono(1.0)
     let black = mono(0.)
-type HitRecord = {wasHit: bool; shotDistance: float; point: V3; normal: V3}
-type Ray= 
-    {origin:V3; direction:V3}
-    member this.PointAt(t:float) = this.origin + t*this.direction
-type Sphere =
-    {center:V3; r:float}
-    static member Hit s ray tmin tmax= 
+module Sphere = 
+    let hit s ray tmin tmax= 
         let rdir = ray.direction
         let oc = ray.origin - s.center
         let a = V3.dot(rdir, rdir)
@@ -82,16 +87,13 @@ type Sphere =
                 {wasHit=false;shotDistance=0.0;point=V3.origin;normal=V3.origin}
         else
             {wasHit=false;shotDistance=0.0;point=V3.origin;normal=V3.origin}
-type Triangle = 
-    {v0:V3;v1:V3;v2:V3}
-    member this.e0 = this.v1 - this.v0
-    member this.e1 = this.v2 - this.v1  
-    member this.e2 = this.v0 - this.v2
-    member this.normal = V3.cross(this.e0, -this.e2)
-    static member Hit t ray tmin tmax = 
+module Triangle = 
+    let normal (t :Triangle) = V3.cross(t.e0, -t.e2)
+    let hit t ray tmin tmax = 
+        let n = normal t
         let planeHit (t: Triangle) (ray :Ray) = 
-            let D = V3.dot(t.normal, t.v0)
-            let t = (V3.dot(t.normal, ray.origin) + D) / V3.dot(t.normal, ray.direction)
+            let D = V3.dot(n, t.v0)
+            let t = (V3.dot(n, ray.origin) + D) / V3.dot(n, ray.direction)
             ray.origin + t * ray.direction
         let P = planeHit t ray
         let dist = V3.dot(P,P) |> sqrt
@@ -101,14 +103,13 @@ type Triangle =
             let c0 = P - t.v0
             let c1 = P - t.v1
             let c2 = P - t.v2
-            V3.dot(t.normal, V3.cross(t.e0,c0)) > 0.0 &&
-            V3.dot(t.normal, V3.cross(t.e1,c1)) > 0.0 &&
-            V3.dot(t.normal, V3.cross(t.e2,c2)) > 0.0 
+            V3.dot(n, V3.cross(t.e0,c0)) > 0.0 &&
+            V3.dot(n, V3.cross(t.e1,c1)) > 0.0 &&
+            V3.dot(n, V3.cross(t.e2,c2)) > 0.0 
         if inside() then
-            {wasHit=true;shotDistance=dist;point=P;normal=t.normal}
+            {wasHit=true;shotDistance=dist;point=P;normal=n}
         else
-            {wasHit=false;shotDistance=0.0;point=V3.origin;normal=t.normal}
-
+            {wasHit=false;shotDistance=0.0;point=V3.origin;normal=n}
 type Hitable = Triangle of Triangle | Sphere of Sphere
 let rand = System.Random()
 let toStr (x) = x.ToString()
@@ -140,8 +141,8 @@ let main argv =
     let s2 = Sphere {center={V3.origin with y=(-100.5); z = (-1.)}; r=100.}
     let s3 = Sphere {center={V3.origin with x=1.; z = (-1.)}; r=0.5}
     let hit = function
-        | Sphere s -> Sphere.Hit s 
-        | Triangle t-> Triangle.Hit t
+        | Sphere s -> Sphere.hit s 
+        | Triangle t-> Triangle.hit t
     let hitables = [tri1;s1;s2;s3] 
     let sb = System.Text.StringBuilder()
     let outN l = sb.Append( l + "\n") |> ignore
