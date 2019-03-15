@@ -1,4 +1,7 @@
-﻿open System.IO
+﻿module FSray
+open System.IO
+open System.Drawing
+
 //open FSharp.Collections.ParallelSeq
 [<AutoOpen>]
 module DTypes =
@@ -58,6 +61,9 @@ module Color =
     let mono k = {r=k;g=k;b=k}
     let white = mono(1.0)
     let black = mono(0.)
+    let DColorFromRgb r g b = System.Drawing.Color.FromArgb(255,r,g,b)
+    let toDcolor (c: Color) = DColorFromRgb (int(c.r * 255.99)) (int(c.g*255.99)) (int(c.b*255.99))
+
 module Sphere = 
     let hit s ray tmin tmax= 
         let rdir = ray.direction
@@ -110,6 +116,15 @@ module Triangle =
             {wasHit=true;shotDistance=dist;point=P;normal=n}
         else
             {wasHit=false;shotDistance=0.0;point=V3.origin;normal=n}
+module Camera = 
+    [<Literal>]
+    let Width = 800 
+    [<Literal>]
+    let Height = 400
+    let bitmap = new Bitmap(Width, Height)
+    let setPixel i j c = bitmap.SetPixel(i,j,c)
+
+    let save () = bitmap.Save(Path.Combine(__SOURCE_DIRECTORY__, "bitmap.png"))
 type Hitable = Triangle of Triangle | Sphere of Sphere
 let rand = System.Random()
 let toStr (x) = x.ToString()
@@ -117,10 +132,7 @@ let toStr (x) = x.ToString()
 //**************************
 //* Settings               *
 //**************************
-[<Literal>]
-let Width = 800 
-[<Literal>]
-let Height = 400
+
 [<Literal>]
 let MaxBounce = 7
 [<Literal>]
@@ -133,6 +145,7 @@ let Tmax = 100000.0
 [<EntryPoint>]
 let main argv = 
     //let stopWatch = System.Diagnostics.Stopwatch.StartNew()
+
     let tv1 = V3.create 0.0 3.0 -1.0
     let tv2 = V3.create 2.0 0.0 0.0
     let tv3 = V3.create -1.0 0.0 -1.0 
@@ -146,10 +159,10 @@ let main argv =
     let hitables = [tri1;s1;s2;s3] 
     let sb = System.Text.StringBuilder()
     let outN l = sb.Append( l + "\n") |> ignore
-    let header = 
-        outN "P3" 
-        outN (sprintf "%i %i" Width Height) 
-        outN "255" 
+    // let header = 
+    //     outN "P3" 
+    //     outN (sprintf "%i %i" Camera.Width Camera.Height) 
+    //     outN "255" 
     let rec randomInUnitSphere (p :obj) = 
         let q = {x=rand.NextDouble(); y=rand.NextDouble(); z=rand.NextDouble()} - 1. 
         match p with
@@ -183,18 +196,20 @@ let main argv =
     let camera i j =
         loading i j |> ignore
         let c = [1..Antialias] |> List.fold(fun acc _ -> 
-            let u = (float(i) + rand.NextDouble()) / float(Width) //these variables have to be initialized here because they need to be generated each time
-            let v = (float(j) + rand.NextDouble()) / float(Height)
+            let u = (float(i) + rand.NextDouble()) / float(Camera.Width) //these variables have to be initialized here because they need to be generated each time
+            let v = (float(j) + rand.NextDouble()) / float(Camera.Height)
             let r = {origin=V3.origin; direction=LowerLeftCorner + u*Horizontal + v*Vertical}
             fireRay r 0 + acc) Color.black
         c/float(Antialias) |> Color.FMap sqrt //average the sum of the passes
-    header //adds the file header for PPM files
-    let columns = [0..(Height-1)] |> List.rev
-    let rows = [0..(Width-1)]
+    // header //adds the file header for PPM files
+    let columns = [0..(Camera.Height-1)] |> List.rev
+    let rows = [0..(Camera.Width-1)]
     columns |> List.iter(fun j ->
         (rows |> List.iter(fun i -> (
-            camera i j |> toStr |> outN
+            camera i j 
+                |> Color.toDcolor 
+                |> Camera.setPixel i j
         )))
     )
-    System.IO.File.WriteAllText("testing.ppm", sb.ToString())
+    Camera.save ()
     0 // return an integer exit code
