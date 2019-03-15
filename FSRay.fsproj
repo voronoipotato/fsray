@@ -1,9 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
+
   <PropertyGroup>
-    <TargetFrameworks>net45;</TargetFrameworks>
-    <AssemblyName>$(MSBuildProjectName).$(TargetFramework)</AssemblyName>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net45</TargetFramework>
   </PropertyGroup>
+
   <ItemGroup>
     <Compile Include="Program.fs" />
   </ItemGroup>
+
 </Project>

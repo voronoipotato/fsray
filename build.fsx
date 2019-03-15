@@ -1,28 +1,26 @@
-// include Fake lib
 #r @"packages/FAKE/tools/FakeLib.dll"
-open Fake.FscHelper
-open Fake
+open Fake.Core
+open Fake.DotNet
+open Fake.IO
+open Fake.IO.FileSystemOperators
+open Fake.IO.Globbing.Operators
+open Fake.Core.TargetOperators
 
-let buildDir = "./bin/"
-
-Target "Clean" (fun _ -> 
-    CleanDir buildDir
-)
-// Default target
-Target "Intro" (fun _ ->
-    trace "Beginning compilation"
-)
-
-Target "Compile" (fun _ ->
-    ["Program.fs"] 
-    |> FscHelper.Compile [FscParam.Out "./bin/Fsray.exe"; FscParam.Target TargetType.Exe]
+Target.create "Clean" (fun _ ->
+    !! "src/**/bin"
+    ++ "src/**/obj"
+    |> Shell.cleanDirs 
 )
 
-//Dependencies
+Target.create "Build" (fun _ ->
+    !! "src/**/*.*proj"
+    |> Seq.iter (DotNet.build id)
+)
+
+Target.create "All" ignore
 
 "Clean"
-    ==> "Intro"
-    ==> "Compile"
+  ==> "Build"
+  ==> "All"
 
-// start build
-RunTargetOrDefault "Compile"
+Target.runOrDefault "All"
